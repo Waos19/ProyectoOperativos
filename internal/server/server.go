@@ -6,8 +6,8 @@ import (
 	"net"
 )
 
-func starServer(port string) {
-	addressTCP, err := net.ResolveTCPAddr("tcp4", ":"+port)
+func StarServer(ipServer string, port string) {
+	addressTCP, err := net.ResolveTCPAddr("tcp4", ipServer+":"+port)
 	if err != nil {
 		log.Fatal(err)
 	}
