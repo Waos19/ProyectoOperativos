@@ -17,17 +17,17 @@ func main() {
 	mode, _ := reader.ReadString('\n')
 	mode = strings.TrimSpace(mode)
 
-	fmt.Print("Ingresa IP: ")
-	ip, _ := reader.ReadString('\n')
-	ip = strings.TrimSpace(ip)
-
-	fmt.Print("Ingresa puerto: ")
-	port, _ := reader.ReadString('\n')
-	port = strings.TrimSpace(port)
-
 	if mode == "server" {
-		server.StarServer(ip, port)
+		cfg, _ := server.LoadConfig("configs/server.conf")
+		server.StarServer(cfg)
 	} else if mode == "client" {
+		fmt.Print("Ingresa IP: ")
+		ip, _ := reader.ReadString('\n')
+		ip = strings.TrimSpace(ip)
+
+		fmt.Print("Ingresa puerto: ")
+		port, _ := reader.ReadString('\n')
+		port = strings.TrimSpace(port)
 		client.ClientStart(ip, port)
 	} else {
 		fmt.Println("Modo inválido. Debes elegir 'server' o 'client'.")
