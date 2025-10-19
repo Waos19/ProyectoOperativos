@@ -12,9 +12,17 @@ func ClientStart(ipServer string, port string) {
 
 	addressServ := ipServer + ":" + port
 
-	dirTCP, _ := net.ResolveTCPAddr("tcp4", addressServ)
+	dirTCP, err := net.ResolveTCPAddr("tcp4", addressServ)
+	if err != nil {
+		fmt.Println("Error resolviendo dirección:", err)
+		return
+	}
 	fmt.Println("Conectando...")
-	socketC, _ := net.DialTCP("tcp4", nil, dirTCP)
+	socketC, err := net.DialTCP("tcp4", nil, dirTCP)
+	if err != nil {
+		fmt.Println("Error conectando al servidor:", err)
+		return
+	}
 	fmt.Println("Conectado al server...", socketC.RemoteAddr())
 	RunInteractiveSession(socketC)
 }
