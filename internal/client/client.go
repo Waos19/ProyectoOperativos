@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"proyoper/internal/server"
 	"strings"
 )
 
-func ClientStart(ipServer string, port string, interval int) {
-	go server.ShowStats(interval)
+func ClientStart(ipServer string, port string) {
 
 	addressServ := ipServer + ":" + port
 

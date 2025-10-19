@@ -17,18 +17,20 @@ func main() {
 
 	fmt.Println("=== Bienvenido ===")
 	fmt.Println("Elige modo: 'server' o 'client'")
+	fmt.Print("-> ")
 	mode, _ := reader.ReadString('\n')
 	mode = strings.TrimSpace(mode)
 
-	if mode == "server" {
+	switch mode {
+	case "server":
 		cfg, err := server.LoadConfig("configs/server.conf")
 		if err != nil {
 			fmt.Println("Error cargando configuración:", err)
 			return
 		}
-		server.StarServer(cfg)
+		server.StartServer(cfg)
 
-	} else if mode == "client" {
+	case "client":
 		fmt.Print("Ingresa IP: ")
 		ip, _ := reader.ReadString('\n')
 		ip = strings.TrimSpace(ip)
@@ -43,7 +45,7 @@ func main() {
 			return
 		}
 
-		users, err := auth.LoadUsers("configs/users.db")
+		users, err := auth.LoadUsers(cfg.Users_file)
 		if err != nil {
 			fmt.Println("Error cargando usuarios:", err)
 			return
@@ -66,6 +68,7 @@ func main() {
 
 			if auth.VerifyLogin(username, password, users) {
 				fmt.Println("Login exitoso.")
+
 				break
 			}
 
@@ -79,10 +82,13 @@ func main() {
 		var interval int
 		fmt.Print("Ingresa intervalo en segundos para el monitor del sistema: ")
 		fmt.Scanln(&interval)
+		fmt.Print("\033[H\033[2J")
 
-		client.ClientStart(ip, port, interval)
+		//go server.ShowStats(interval) // Monitor en consola
 
-	} else {
+		client.ClientStart(ip, port) // Sesión interactiva con soporte para repstats
+
+	default:
 		fmt.Println("Modo inválido. Debes elegir 'server' o 'client'.")
 	}
 }

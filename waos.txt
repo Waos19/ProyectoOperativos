@@ -1,0 +1,401 @@
+package server
+
+import (
+	"bufio"
+	"fmt"
+	"log"
+	"net"
+	"os"
+	"path/filepath"
+	"proyoper/internal/shell"
+	"strings"
+)
+
+func IsAllowed(ip string, allowed []string) bool {
+	for _, allowedip := range allowed {
+		if ip == allowedip {
+			return true
+		}
+	}
+	return false
+}
+
+func StartServer(cfg Config) {
+	if len(cfg.Allowed_ips) == 0 {
+		log.Fatal("No hay IPs permitidas en la configuración")
+	}
+
+	address := fmt.Sprintf("%s:%d", "0.0.0.0", cfg.Port)
+	addressTCP, err := net.ResolveTCPAddr("tcp4", address)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	listener, err := net.ListenTCP("tcp4", addressTCP)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Servidor escuchando en", addressTCP)
+	fmt.Println("Esperando conexiones...")
+
+	for {
+		socketServ, err := listener.Accept()
+		if err != nil {
+			log.Printf("Error aceptando conexión: %v", err)
+			continue
+		}
+		go HandleConnection(socketServ, cfg)
+	}
+}
+
+func HandleConnection(conn net.Conn, cfg Config) {
+
+	defer conn.Close()
+	remoteIP := conn.RemoteAddr().(*net.TCPAddr).IP.String()
+	if !IsAllowed(remoteIP, cfg.Allowed_ips) {
+		fmt.Printf("Conexión rechazada desde IP no permitida: %s\n", remoteIP)
+		return
+	}
+
+	fmt.Println("Cliente conectado desde:", remoteIP)
+
+	reader := bufio.NewReader(conn)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("No se pudo obtener el directorio home:", err)
+		return
+	}
+
+	if err := os.Chdir(homeDir); err != nil {
+		fmt.Println("Error cambiando al directorio home:", err)
+		return
+	}
+
+	currentDir := homeDir
+
+	for {
+		command, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error leyendo comando:", err)
+			return
+		}
+
+		command = command[:len(command)-1] // quitar salto de línea
+		if command == "bye" {
+			fmt.Println("Cliente cerró la sesión.")
+			return
+		}
+
+		if strings.HasPrefix(command, "cd ") {
+			target := strings.TrimSpace(strings.TrimPrefix(command, "cd "))
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(currentDir, target)
+			}
+			if err := os.Chdir(target); err != nil {
+				conn.Write([]byte("Error cambiando de directorio: " + err.Error() + "\n__END__\n"))
+			} else {
+				currentDir = target
+				conn.Write([]byte("Directorio cambiado a: " + currentDir + "\n__END__\n"))
+			}
+			continue
+		}
+
+		fmt.Println("Ejecutando comando:", command)
+		output, err := shell.RunCommand(command)
+		if err != nil {
+			output += "\nError: " + err.Error()
+		}
+
+		conn.Write([]byte(output + "\n__END__\n"))
+	}
+}
+
+package server
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem"
+)
+
+type Resources struct {
+	Timestamp   time.Time
+	CPUPercent  float64
+	MemoryUsed  uint64
+	MemoryTotal uint64
+	DiskUsed    uint64
+	DiskTotal   uint64
+}
+
+func GetStats() (*Resources, error) {
+
+	cpuPercents, err := cpu.Percent(0, false)
+	if err != nil {
+		return nil, err
+	}
+
+	vmStat, err := mem.VirtualMemory()
+	if err != nil {
+		return nil, err
+	}
+
+	diskStat, err := disk.Usage("/")
+	if err != nil {
+		return nil, err
+	}
+
+	stats := &Resources{
+		Timestamp:   time.Now(),
+		CPUPercent:  cpuPercents[0],
+		MemoryUsed:  vmStat.Used,
+		MemoryTotal: vmStat.Total,
+		DiskUsed:    diskStat.Used,
+		DiskTotal:   diskStat.Total,
+	}
+
+	return stats, nil
+}
+
+func ShowStats(interval int) {
+	for {
+		cpuPercents, _ := cpu.Percent(0, false)
+		vmStat, _ := mem.VirtualMemory()
+		diskStat, _ := disk.Usage("/")
+
+		// Mueve el cursor a la primera línea y sobrescribe sin salto
+		fmt.Printf("\033[1;1H[MONITOR] 🕒 %s | 🔥 CPU: %.1f%% | 🧠 Mem: %.1f%% | 💾 Disk: %.1f%%\033[K",
+			time.Now().Format("15:04:05"),
+			cpuPercents[0],
+			vmStat.UsedPercent,
+			diskStat.UsedPercent)
+
+		time.Sleep(time.Duration(interval) * time.Second)
+	}
+}
+
+package server
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
+
+type Config struct {
+	Port         int
+	Allowed_ips  []string
+	Max_attempts int
+	Users_file   string
+}
+
+func LoadConfig(path string) (Config, error) {
+	//lee el archivo
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, err
+	}
+	//separa las lineas de texto del archivo
+	lines := strings.Split(string(data), "\n")
+	cfg := Config{}
+
+	for _, line := range lines {
+		if line == "" || !strings.Contains(line, "=") {
+			continue
+		}
+		//Separa el texto con = y en 2 slices
+		parts := strings.SplitN(line, "=", 2)
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "Port":
+			cfg.Port, _ = strconv.Atoi(value)
+		case "Allowed_ips":
+			raw := strings.Split(value, ",")
+			for _, r := range raw {
+				ip := strings.TrimSpace(r)
+				if ip != "" {
+					cfg.Allowed_ips = append(cfg.Allowed_ips, ip)
+				}
+			}
+		case "Max_attempts":
+			cfg.Max_attempts, _ = strconv.Atoi(value)
+		case "Users_file":
+			cfg.Users_file = value
+
+		}
+	}
+
+	fmt.Printf("Config cargado:\n%+v\n", cfg)
+
+	return cfg, err
+}
+
+package client
+
+import (
+	"bufio"
+	"fmt"
+	"net"
+	"os"
+	"strings"
+)
+
+func ClientStart(ipServer string, port string) {
+
+	addressServ := ipServer + ":" + port
+
+	dirTCP, _ := net.ResolveTCPAddr("tcp4", addressServ)
+	fmt.Println("Conectando...")
+	socketC, _ := net.DialTCP("tcp4", nil, dirTCP)
+	fmt.Println("Conectado al server...", socketC.RemoteAddr())
+	RunInteractiveSession(socketC)
+}
+
+func RunInteractiveSession(conn net.Conn) {
+	reader := bufio.NewReader(os.Stdin)
+	serverReader := bufio.NewReader(conn)
+
+	for {
+		fmt.Print("-> ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error leyendo entrada:", err)
+			break
+		}
+
+		command := strings.TrimSpace(input)
+		if command == "bye" {
+			fmt.Println("Cerrando conexión...")
+			conn.Write([]byte("bye\n"))
+			break
+		}
+
+		_, err = conn.Write([]byte(command + "\n"))
+		if err != nil {
+			fmt.Println("Error enviando comando:", err)
+			break
+		}
+
+		// Leer múltiples líneas hasta encontrar el delimitador __END__
+		for {
+			line, err := serverReader.ReadString('\n')
+			if err != nil {
+				fmt.Println("Error leyendo respuesta:", err)
+				break
+			}
+
+			line = strings.TrimSpace(line)
+			if line == "__END__" {
+				break
+			}
+
+			fmt.Println(line)
+		}
+	}
+}
+
+package auth
+
+import (
+	"fmt"
+	"time"
+)
+
+func HandleFailedAttempt(attempt int, maxAttempts int) bool {
+	if attempt >= maxAttempts {
+		fmt.Println("Demasiados intentos fallidos. Conexión bloqueada.")
+		return false
+	}
+
+	wait := time.Duration(attempt*2) * time.Second
+	fmt.Printf("Intento fallido %d/%d. Esperando %v antes de reintentar...\n", attempt, maxAttempts, wait)
+	time.Sleep(wait)
+	return true
+}
+
+package auth
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+)
+
+func VerifyLogin(username, password string, users map[string]string) bool {
+	hash := sha256.Sum256([]byte(password))
+	hashedInput := hex.EncodeToString(hash[:])
+
+	storedHash, exists := users[username]
+	if !exists {
+		return false
+	}
+	return storedHash == hashedInput
+}
+
+package auth
+
+import (
+	"fmt"
+	"os"
+	"strings"
+)
+
+func LoadUsers(path string) (map[string]string, error) {
+	users := make(map[string]string)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error leyendo archivo de usuarios: %v", err)
+	}
+
+	lines := strings.SplitSeq(string(data), "\n")
+	for line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.Contains(line, ":") {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		user := strings.TrimSpace(parts[0])
+		hash := strings.TrimSpace(parts[1])
+		users[user] = hash
+	}
+
+	return users, nil
+}
+
+package shell
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+)
+
+func GetInput() (string, error) {
+	fmt.Print("-> ")
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(input), nil
+}
+
+func RunCommand(input string) (string, error) {
+	parts := strings.Fields(input)
+	if len(parts) == 0 {
+		return "", fmt.Errorf("comando vacío")
+	}
+
+	cmd := exec.Command(parts[0], parts[1:]...)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}

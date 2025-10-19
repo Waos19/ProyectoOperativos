@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -52,7 +51,7 @@ func LoadConfig(path string) (Config, error) {
 		}
 	}
 
-	fmt.Printf("Config cargado:\n%+v\n", cfg)
+	//fmt.Printf("Config cargado:\n%+v\n", cfg)
 
 	return cfg, err
 }

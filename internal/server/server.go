@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"proyoper/internal/monitor"
 	"proyoper/internal/shell"
 	"strings"
 )
@@ -20,7 +21,7 @@ func IsAllowed(ip string, allowed []string) bool {
 	return false
 }
 
-func StarServer(cfg Config) {
+func StartServer(cfg Config) {
 	if len(cfg.Allowed_ips) == 0 {
 		log.Fatal("No hay IPs permitidas en la configuración")
 	}
@@ -99,6 +100,16 @@ func HandleConnection(conn net.Conn, cfg Config) {
 				currentDir = target
 				conn.Write([]byte("Directorio cambiado a: " + currentDir + "\n__END__\n"))
 			}
+			continue
+		}
+
+		if command == "repstats" {
+			stats, err := monitor.GenerateReport()
+			if err != nil {
+				conn.Write([]byte("Error generando reporte: " + err.Error() + "\n__END__\n"))
+				continue
+			}
+			conn.Write([]byte(string(stats) + "\n__END__\n"))
 			continue
 		}
 
