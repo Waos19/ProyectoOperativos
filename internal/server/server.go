@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
 	"proyoper/internal/shell"
+	"strings"
 )
 
 func IsAllowed(ip string, allowed []string) bool {
@@ -18,11 +21,11 @@ func IsAllowed(ip string, allowed []string) bool {
 }
 
 func StarServer(cfg Config) {
-	if len(cfg.allowed_ips) == 0 {
+	if len(cfg.Allowed_ips) == 0 {
 		log.Fatal("No hay IPs permitidas en la configuración")
 	}
 
-	address := fmt.Sprintf("%s:%d", "0.0.0.0", cfg.port)
+	address := fmt.Sprintf("%s:%d", "0.0.0.0", cfg.Port)
 	addressTCP, err := net.ResolveTCPAddr("tcp4", address)
 
 	if err != nil {
@@ -51,7 +54,7 @@ func HandleConnection(conn net.Conn, cfg Config) {
 
 	defer conn.Close()
 	remoteIP := conn.RemoteAddr().(*net.TCPAddr).IP.String()
-	if !IsAllowed(remoteIP, cfg.allowed_ips) {
+	if !IsAllowed(remoteIP, cfg.Allowed_ips) {
 		fmt.Printf("Conexión rechazada desde IP no permitida: %s\n", remoteIP)
 		return
 	}
@@ -59,6 +62,18 @@ func HandleConnection(conn net.Conn, cfg Config) {
 	fmt.Println("Cliente conectado desde:", remoteIP)
 
 	reader := bufio.NewReader(conn)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("No se pudo obtener el directorio home:", err)
+		return
+	}
+
+	if err := os.Chdir(homeDir); err != nil {
+		fmt.Println("Error cambiando al directorio home:", err)
+		return
+	}
+
+	currentDir := homeDir
 
 	for {
 		command, err := reader.ReadString('\n')
@@ -71,6 +86,20 @@ func HandleConnection(conn net.Conn, cfg Config) {
 		if command == "bye" {
 			fmt.Println("Cliente cerró la sesión.")
 			return
+		}
+
+		if strings.HasPrefix(command, "cd ") {
+			target := strings.TrimSpace(strings.TrimPrefix(command, "cd "))
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(currentDir, target)
+			}
+			if err := os.Chdir(target); err != nil {
+				conn.Write([]byte("Error cambiando de directorio: " + err.Error() + "\n__END__\n"))
+			} else {
+				currentDir = target
+				conn.Write([]byte("Directorio cambiado a: " + currentDir + "\n__END__\n"))
+			}
+			continue
 		}
 
 		fmt.Println("Ejecutando comando:", command)

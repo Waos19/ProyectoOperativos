@@ -8,10 +8,10 @@ import (
 )
 
 type Config struct {
-	port         int
-	allowed_ips  []string
-	max_attempts int
-	users_file   string
+	Port         int
+	Allowed_ips  []string
+	Max_attempts int
+	Users_file   string
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -34,20 +34,20 @@ func LoadConfig(path string) (Config, error) {
 		value := strings.TrimSpace(parts[1])
 
 		switch key {
-		case "port":
-			cfg.port, _ = strconv.Atoi(value)
-		case "allowed_ips":
+		case "Port":
+			cfg.Port, _ = strconv.Atoi(value)
+		case "Allowed_ips":
 			raw := strings.Split(value, ",")
 			for _, r := range raw {
 				ip := strings.TrimSpace(r)
 				if ip != "" {
-					cfg.allowed_ips = append(cfg.allowed_ips, ip)
+					cfg.Allowed_ips = append(cfg.Allowed_ips, ip)
 				}
 			}
-		case "max_attempts":
-			cfg.max_attempts, _ = strconv.Atoi(value)
-		case "users_file":
-			cfg.users_file = value
+		case "Max_attempts":
+			cfg.Max_attempts, _ = strconv.Atoi(value)
+		case "Users_file":
+			cfg.Users_file = value
 
 		}
 	}

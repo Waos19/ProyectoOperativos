@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"proyoper/internal/server"
 	"strings"
 )
 
-func ClientStart(ipServer string, port string) {
+func ClientStart(ipServer string, port string, interval int) {
+	go server.ShowStats(interval)
 
 	addressServ := ipServer + ":" + port
 
@@ -24,7 +26,7 @@ func RunInteractiveSession(conn net.Conn) {
 	serverReader := bufio.NewReader(conn)
 
 	for {
-		fmt.Print("> ")
+		fmt.Print("-> ")
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Println("Error leyendo entrada:", err)
