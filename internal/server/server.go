@@ -58,9 +58,7 @@ func StartServer(cfg Config, logChan chan<- string) error {
 		// 💡 CAMBIO: Pasamos el canal de logs a cada nueva conexión.
 		go HandleConnection(socketServ, cfg, logChan)
 	}
-	// Esta línea no se alcanzará, pero es para que el compilador esté contento
-	// con el 'return error' de la firma.
-	return nil
+
 }
 
 // 💡 CAMBIO: La función ahora acepta el canal de logs (logChan).
