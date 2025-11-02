@@ -10,19 +10,20 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
-func StartClientUI() {
-	myApp := app.New()
-	myApp.Settings().SetTheme(&myTheme{})
-	myWindow := myApp.NewWindow("Cliente")
-	myWindow.Resize(fyne.NewSize(400, 300))
+func StartClientUI(myWindow fyne.Window) {
+	// Configuración inicial de la ventana
+	myWindow.SetTitle("Cliente - Login")
+	myWindow.Resize(fyne.NewSize(800, 600))
+	myWindow.SetFixedSize(false)
+	myWindow.SetPadded(false)
 
+	// Carga de configuración y usuarios
 	cfg, err := server.LoadConfig("configs/server.conf")
 	if err != nil {
 		log.Fatalf("Error crítico: No se pudo cargar config local: %v", err)
@@ -32,10 +33,11 @@ func StartClientUI() {
 		log.Fatalf("Error crítico: No se pudieron cargar usuarios: %v", err)
 	}
 
+	// Control de intentos de inicio de sesión
 	var attempts int = 0
 	maxAttempts := cfg.Max_attempts
 
-	// --- 1. CREAMOS LOS WIDGETS DEL LOGIN ---
+	// Inicialización de widgets de login
 	ipEntry := widget.NewEntry()
 	ipEntry.SetPlaceHolder("IP del Servidor (ej: 127.0.0.1)")
 
@@ -54,52 +56,52 @@ func StartClientUI() {
 
 	statusBinding := binding.NewString()
 	statusLabel := widget.NewLabelWithData(statusBinding)
-
 	buttonDisabled := binding.NewBool()
 
+	// Configuración del botón de login
 	loginButton := widget.NewButton("Conectar y Autenticar", func() {
-		// --- Inicia el proceso ---
 		statusBinding.Set("Verificando...")
-		buttonDisabled.Set(true) // Deshabilita el botón
+		buttonDisabled.Set(true)
 
-		// --- Obtenemos los datos ---
+		// Obtención de datos del formulario
 		ip := ipEntry.Text
 		port := portEntry.Text
 		username := userEntry.Text
 		password := passEntry.Text
-
 		interval, err := strconv.Atoi(intervalEntry.Text)
+
+		// Validación del intervalo
 		if err != nil || interval <= 0 {
 			statusBinding.Set("Error: El intervalo debe ser un número positivo.")
-			buttonDisabled.Set(false) // Rehabilita el botón
+			buttonDisabled.Set(false)
 			return
 		}
 
+		// Verificación de login
 		if !auth.VerifyLogin(username, password, users) {
-			// --- INTENTO FALLIDO ---
 			attempts++
-
 			if attempts >= maxAttempts {
-				// --- BLOQUEADO ---
-				statusBinding.Set(fmt.Sprintf("Demasiados intentos fallidos (%d/%d). Aplicación bloqueada.", attempts, maxAttempts))
-				// No re-habilitamos el botón (se queda deshabilitado)
+				statusBinding.Set(fmt.Sprintf("Demasiados intentos (%d/%d). La app se cerrará...",
+					attempts, maxAttempts))
+				go func() {
+					time.Sleep(3 * time.Second)
+					fyne.CurrentApp().Quit()
+				}()
 				return
 			}
 
-			// --- ESPERAR ---
 			wait := time.Duration(attempts*2) * time.Second
-			statusBinding.Set(fmt.Sprintf("Intento %d/%d fallido. Espere %v...", attempts, maxAttempts, wait))
-
+			statusBinding.Set(fmt.Sprintf("Intento %d/%d fallido. Espere %v...",
+				attempts, maxAttempts, wait))
 			go func() {
 				time.Sleep(wait)
 				statusBinding.Set("Intente de nuevo.")
-				buttonDisabled.Set(false) // Rehabilita el botón
+				buttonDisabled.Set(false)
 			}()
-
 			return
 		}
 
-		// --- INTENTO EXITOSO ---
+		// Intento de conexión
 		statusBinding.Set("Autenticación exitosa. Conectando...")
 		conn, err := client.Connect(ip, port)
 		if err != nil {
@@ -108,16 +110,17 @@ func StartClientUI() {
 			return
 		}
 
-		// --- CONEXIÓN EXITOSA ---
+		// Configuración de la ventana principal tras conexión exitosa
+		myWindow.SetFixedSize(false)
+		myWindow.SetTitle("Cliente - Conectado")
+		myWindow.Resize(fyne.NewSize(800, 600))
+
 		mainLayout := BuildMainClientLayout(conn, interval)
 		myWindow.SetContent(mainLayout)
-		myWindow.Resize(fyne.NewSize(1024, 768))
 	})
 
-	// 💡 CAMBIO: Esta es la forma correcta de enlazar el estado "deshabilitado"
-	// Añadimos un "listener" al binding.
+	// Configuración del listener para el estado del botón
 	buttonDisabled.AddListener(binding.NewDataListener(func() {
-		// Esta función se ejecuta CADA VEZ que buttonDisabled.Set() es llamado.
 		if disabled, err := buttonDisabled.Get(); err == nil {
 			if disabled {
 				loginButton.Disable()
@@ -127,7 +130,7 @@ func StartClientUI() {
 		}
 	}))
 
-	// --- 2. LAYOUT DEL LOGIN ---
+	// Construcción del formulario de login
 	loginForm := widget.NewForm(
 		widget.NewFormItem("IP", ipEntry),
 		widget.NewFormItem("Puerto", portEntry),
@@ -136,6 +139,7 @@ func StartClientUI() {
 		widget.NewFormItem("Intervalo (s)", intervalEntry),
 	)
 
+	// Construcción del layout principal
 	loginLayout := container.New(
 		layout.NewVBoxLayout(),
 		loginForm,
@@ -144,5 +148,4 @@ func StartClientUI() {
 	)
 
 	myWindow.SetContent(loginLayout)
-	myWindow.ShowAndRun()
 }

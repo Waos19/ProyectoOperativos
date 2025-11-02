@@ -5,7 +5,7 @@ import (
 	"net"
 	"proyoper/internal/client"
 	"proyoper/internal/monitor"
-	"time" // Necesitamos 'time'
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -13,50 +13,55 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// 💡 CAMBIO: La firma ahora acepta un 'interval' de tipo int
+// BuildMainClientLayout construye la interfaz principal del cliente
+// Recibe una conexión de red y un intervalo para el monitor del sistema
 func BuildMainClientLayout(conn net.Conn, interval int) fyne.CanvasObject {
-
-	// 💡 CAMBIO: Convertimos el 'int' a 'time.Duration'
-	// (Ej: 5 -> 5 * time.Second)
+	// Configuración inicial
 	reportInterval := time.Duration(interval) * time.Second
-
 	outputChan := make(chan string)
 	errorChan := make(chan string)
 
-	// --- [GOROUTINE 1] Lector de Red (sin cambios) ---
+	// Iniciar el lector de red en una goroutine
 	go client.StartClientReader(conn, outputChan, errorChan)
 
-	// --- Creación de Widgets (Las 3 Cajas) ---
+	// Inicialización de widgets
+	// 1. Caja de comandos
 	commandBox := widget.NewEntry()
 	commandBox.SetPlaceHolder("Escribe un comando y presiona Enter...")
 
+	// 2. Caja de resultados
 	resultBinding := binding.NewString()
 	resultBox := widget.NewMultiLineEntry()
 	resultBox.Bind(resultBinding)
 	resultBox.Disable()
 
+	// 3. Caja de reportes
 	reportBinding := binding.NewString()
 	reportBox := widget.NewMultiLineEntry()
 	reportBox.Bind(reportBinding)
 	reportBox.Disable()
-	reportBinding.Set(fmt.Sprintf("Iniciando monitor de sistema (actualizando cada %d segundos)...", interval))
+	reportBinding.Set(fmt.Sprintf("Iniciando monitor de sistema (actualizando cada %d segundos)...",
+		interval))
 
-	// --- Lógica de envío de Comandos (sin cambios) ---
+	// Configuración del manejador de comandos
 	commandBox.OnSubmitted = func(cmd string) {
 		if cmd == "" {
 			return
 		}
+
 		_, err := conn.Write([]byte(cmd + "\n"))
 		if err != nil {
 			errorChan <- fmt.Sprintf("Error enviando comando: %v", err)
 		}
+
 		if cmd == "bye" {
 			fyne.CurrentApp().Quit()
 		}
+
 		commandBox.SetText("")
 	}
 
-	// --- [GOROUTINE 2] Actualizador de GUI (sin cambios) ---
+	// Goroutine para actualizar la interfaz gráfica
 	go func() {
 		for {
 			select {
@@ -68,7 +73,7 @@ func BuildMainClientLayout(conn net.Conn, interval int) fyne.CanvasObject {
 		}
 	}()
 
-	// 💡 CAMBIO: [GOROUTINE 3] Monitor del Sistema Local
+	// Goroutine para el monitor del sistema
 	go func() {
 		for {
 			reportString, err := monitor.GenerateReport()
@@ -77,19 +82,19 @@ func BuildMainClientLayout(conn net.Conn, interval int) fyne.CanvasObject {
 			} else {
 				reportBinding.Set(reportString)
 			}
-
-			// 💡 CAMBIO: Usamos la variable 'reportInterval' que recibimos
 			time.Sleep(reportInterval)
 		}
 	}()
 
-	// --- Creación del Layout (Splits - sin cambios) ---
+	// Construcción del layout
+	// 1. Split superior (comandos y resultados)
 	topSplit := container.NewHSplit(
 		container.NewScroll(commandBox),
 		container.NewScroll(resultBox),
 	)
 	topSplit.SetOffset(0.4)
 
+	// 2. Split principal (superior y reportes)
 	mainSplit := container.NewVSplit(
 		topSplit,
 		container.NewScroll(reportBox),

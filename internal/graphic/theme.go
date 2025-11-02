@@ -1,68 +1,53 @@
 package graphic
 
 import (
-	"image/color" // Necesario para el tema
-
-	_ "embed" // ¡Importante! Necesario para 'go:embed'
+	_ "embed"
+	"image/color"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
 )
 
-// 'go:embed' le dice a Go que incluya este archivo en el binario.
-// Asegúrate de que el nombre coincida EXACTAMENTE con tu archivo.
-//
-//go:embed JetBrainsMono-Regular.ttf
+// 💡 CAMBIO: Incrustamos la fuente JetBrains Mono directamente en el binario
 var myFontData []byte
 
-// Creamos un "recurso estático" para Fyne
+// myFontResource es el recurso estático de la fuente para Fyne
 var myFontResource = &fyne.StaticResource{
 	StaticName:    "JetBrainsMono-Regular.ttf",
 	StaticContent: myFontData,
 }
 
-// myTheme es nuestra implementación de tema personalizado
-type myTheme struct{}
+// MyTheme implementa la interfaz fyne.Theme para personalizar la apariencia de la aplicación
+type MyTheme struct{}
 
-// Esto asegura que nuestro tema implementa la interfaz correcta
-var _ fyne.Theme = (*myTheme)(nil)
+// Verificación de implementación de la interfaz en tiempo de compilación
+var _ fyne.Theme = (*MyTheme)(nil)
 
-// --- Sobrescribimos los métodos del tema ---
-
-// Color: Usamos el tema por defecto (DefaultTheme) para que
-// se ajuste al modo claro/oscuro de tu PC.
-func (m *myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-
-	// 💡 CAMBIO: Si la app pide el color "Deshabilitado" (Disabled)
-	// (que Fyne usa para el texto en logView.Disable())
-	if name == theme.ColorNameDisabled {
-		// Forzamos que sea blanco puro
+// Color devuelve el color para el nombre de tema especificado
+// Personaliza los colores de texto deshabilitado y de primer plano a blanco
+func (m *MyTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	switch name {
+	case theme.ColorNameDisabled, theme.ColorNameForeground:
 		return color.White
+	default:
+		return theme.DefaultTheme().Color(name, variant)
 	}
-
-	// 💡 CAMBIO: (Opcional) Si el color del texto principal
-	// (como el de la caja de input) también se ve gris
-	if name == theme.ColorNameForeground {
-		return color.White
-	}
-
-	// Para todo lo demás (fondo, botones, etc.), usa el tema del sistema
-	return theme.DefaultTheme().Color(name, variant)
 }
 
-// Icon: Usamos los iconos del tema por defecto
-func (m *myTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
+// Icon devuelve el recurso del icono para el nombre especificado
+// Utiliza los iconos predeterminados del tema
+func (m *MyTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 	return theme.DefaultTheme().Icon(name)
 }
 
-// Font: ¡Esta es la parte clave!
-// Sobrescribimos la fuente para TODOS los estilos.
-func (mM *myTheme) Font(style fyne.TextStyle) fyne.Resource {
-	// Devolvemos siempre nuestra fuente personalizada
+// Font devuelve el recurso de la fuente personalizada
+// Usa JetBrains Mono como fuente predeterminada
+func (m *MyTheme) Font(style fyne.TextStyle) fyne.Resource {
 	return myFontResource
 }
 
-// Size: Usamos los tamaños del tema por defecto
-func (m *myTheme) Size(name fyne.ThemeSizeName) float32 {
-	return theme.DefaultTheme().Size(name)
+// Size devuelve el tamaño para el nombre de tema especificado
+// Aumenta el tamaño predeterminado en un 20%
+func (m *MyTheme) Size(name fyne.ThemeSizeName) float32 {
+	return theme.DefaultTheme().Size(name) * 1.2
 }
