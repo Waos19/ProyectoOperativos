@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"proyoper/internal/monitor"
 	"proyoper/internal/shell"
 	"strings"
 )
@@ -123,16 +122,6 @@ func HandleConnection(conn net.Conn, cfg Config, logChan chan<- string) {
 			} else {
 				conn.Write([]byte("Error cambiando de directorio: " + err.Error() + "\n__END__\n"))
 			}
-			continue
-		}
-
-		if command == "repstats" {
-			stats, err := monitor.GenerateReport() // Asumimos que esta versión no toma intervalo
-			if err != nil {
-				conn.Write([]byte("Error generando reporte: " + err.Error() + "\n__END__\n"))
-				continue
-			}
-			conn.Write([]byte(string(stats) + "\n__END__\n"))
 			continue
 		}
 
