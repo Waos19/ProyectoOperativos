@@ -28,7 +28,6 @@ func StartAppLauncher() {
 }
 
 // ShowLauncherScreen configura y muestra la pantalla principal del lanzador
-// con botones para iniciar el servidor o el cliente.
 func ShowLauncherScreen(myWindow fyne.Window) {
 	// Configuración de la ventana
 	myWindow.SetTitle("Lanzador")

@@ -1,1 +1,0 @@
-Hola, estoy comprobando que el git funcione correctamente.
